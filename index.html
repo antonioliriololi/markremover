@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Limpiar marcas de PDF</title>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+  button { padding: .6rem 1.2rem; margin-right: .5rem; font-size: 1rem; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  #status { margin-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>Limpiar marcas de un PDF</h1>
+<p>Elimina resaltados, subrayados, tachados y otras anotaciones del PDF.</p>
+<input type="file" id="file" accept="application/pdf,.pdf">
+<p>
+  <button id="process" disabled>Procesar</button>
+  <button id="download" disabled>Descargar completamente limpio</button>
+</p>
+<div id="status" role="status"></div>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script>
+const MARK_SUBTYPES = ['Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'Ink',
+  'Text', 'FreeText', 'Caret', 'Popup', 'Line', 'Square', 'Circle',
+  'Polygon', 'PolyLine', 'Stamp'];
+
+const fileInput = document.getElementById('file');
+const processBtn = document.getElementById('process');
+const downloadBtn = document.getElementById('download');
+const statusEl = document.getElementById('status');
+let originalName = 'documento.pdf';
+let cleanBlob = null;
+
+fileInput.addEventListener('change', () => {
+  cleanBlob = null;
+  downloadBtn.disabled = true;
+  processBtn.disabled = !fileInput.files.length;
+  statusEl.textContent = '';
+});
+
+processBtn.addEventListener('click', async () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  processBtn.disabled = true;
+  statusEl.textContent = 'Procesando...';
+  try {
+    const { PDFDocument, PDFName } = PDFLib;
+    const pdf = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+    let removed = 0;
+    for (const page of pdf.getPages()) {
+      const annots = page.node.Annots();
+      if (!annots) continue;
+      for (let i = annots.size() - 1; i >= 0; i--) {
+        const annot = annots.lookupMaybe(i, PDFLib.PDFDict);
+        const subtype = annot && annot.lookup(PDFName.of('Subtype'));
+        const name = subtype && subtype.asString().replace('/', '');
+        if (name && MARK_SUBTYPES.includes(name)) {
+          annots.remove(i);
+          removed++;
+        }
+      }
+    }
+    const bytes = await pdf.save();
+    cleanBlob = new Blob([bytes], { type: 'application/pdf' });
+    originalName = file.name.replace(/\.pdf$/i, '') + '_limpio.pdf';
+    downloadBtn.disabled = false;
+    statusEl.textContent = `Listo: se eliminaron ${removed} marca(s).`;
+  } catch (e) {
+    statusEl.textContent = 'Error al procesar el PDF: ' + e.message;
+  } finally {
+    processBtn.disabled = false;
+  }
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!cleanBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(cleanBlob);
+  a.download = originalName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+</script>
+</body>
+</html>
