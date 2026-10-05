@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Limpiar PDF</title>
+<style>body{font-family:sans-serif;max-width:480px;margin:3rem auto}button{margin:.5rem .5rem 0 0;padding:.5rem 1rem}</style></head>
+<body>
+<h1>Quitar marcas del PDF</h1>
+<input type="file" id="file" accept="application/pdf"><br>
+<button id="go" disabled>Procesar</button>
+<button id="dl" disabled>Descargar completamente limpio</button>
+<p id="msg"></p>
+<script>
+let rid=null;const $=i=>document.getElementById(i);
+$('file').onchange=()=>{$('go').disabled=!$('file').files.length;$('dl').disabled=true;rid=null;$('msg').textContent=''};
+$('go').onclick=async()=>{
+  const fd=new FormData();fd.append('file',$('file').files[0]);
+  $('msg').textContent='Procesando...';
+  const r=await fetch('/process',{method:'POST',body:fd});const j=await r.json();
+  if(!r.ok){$('msg').textContent=j.error;return}
+  rid=j.id;$('dl').disabled=false;$('msg').textContent='Listo.';
+};
+$('dl').onclick=()=>{if(rid)location.href='/download/'+rid};
+</script></body></html>
